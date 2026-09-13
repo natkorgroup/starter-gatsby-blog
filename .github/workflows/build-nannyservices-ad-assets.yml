@@ -1,0 +1,47 @@
+name: Build NannyServices ad assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ads-src/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check all chunks are present
+        id: check
+        shell: bash
+        run: |
+          LAND=$(find ads-src -maxdepth 1 -name 'land.part*' | wc -l)
+          SQUARE=$(find ads-src -maxdepth 1 -name 'square.part*' | wc -l)
+          if [ "$LAND" -eq 4 ] && [ "$SQUARE" -eq 3 ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Decode image assets
+        if: steps.check.outputs.ready == 'true'
+        shell: bash
+        run: |
+          mkdir -p static/google-ads
+          cat ads-src/land.part1 ads-src/land.part2 ads-src/land.part3 ads-src/land.part4 | base64 -d > static/google-ads/ns-placement-landscape-final.jpg
+          cat ads-src/square.part1 ads-src/square.part2 ads-src/square.part3 | base64 -d > static/google-ads/ns-placement-square-final.jpg
+          file static/google-ads/ns-placement-landscape-final.jpg
+          file static/google-ads/ns-placement-square-final.jpg
+      - name: Commit decoded image assets
+        if: steps.check.outputs.ready == 'true'
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add static/google-ads/ns-placement-landscape-final.jpg static/google-ads/ns-placement-square-final.jpg
+          if ! git diff --cached --quiet; then
+            git commit -m 'Build NannyServices Google Ads images'
+            git push
+          fi
